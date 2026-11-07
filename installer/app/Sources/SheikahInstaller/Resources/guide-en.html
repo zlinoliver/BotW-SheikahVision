@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SheikahVision Guide</title>
+<style>
+  :root { color-scheme: dark; --glow: #32fafa; --text: #e9eef0; --dim: #a7b3b8; --card: rgba(255,255,255,0.05); --line: rgba(255,255,255,0.10); }
+  body { margin: 0; background: #1c2426; color: var(--text); font: 14px/1.6 -apple-system, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 28px 28px 48px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .lead { color: var(--dim); margin: 0 0 20px; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  nav a { color: var(--text); text-decoration: none; font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+  section { margin-top: 26px; padding-top: 4px; }
+  h2 { font-size: 17px; margin: 0 0 8px; color: var(--glow); }
+  ol, ul { padding-left: 20px; margin: 6px 0; }
+  li { margin: 4px 0; }
+  code { font: 12px ui-monospace, Menlo, monospace; background: var(--card); padding: 1px 5px; border-radius: 4px; }
+  .note { color: var(--dim); font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+  td { border-top: 1px solid var(--line); padding: 6px 8px 6px 0; vertical-align: top; }
+  td:first-child { color: var(--dim); white-space: nowrap; }
+</style>
+</head>
+<body><main>
+<h1>SheikahVision Guide</h1>
+<p class="lead">Build and install the Vision Pro version on your Mac from your own Wii U copy of The Legend of Zelda: Breath of the Wild. Unofficial fan project, not affiliated with Nintendo.</p>
+<nav>
+  <a href="#mac">Before you start</a><a href="#game">Game files</a><a href="#pair">Connect Vision Pro</a><a href="#install">Install</a><a href="#renew">Renew</a><a href="#update">Update</a><a href="#files">Files on your Mac</a>
+</nav>
+
+<section id="mac">
+<h2>Before you start</h2>
+<ul>
+  <li>An Apple silicon Mac with Xcode 26 or later. Xcode is required: it compiles and signs the app and talks to the headset. Install it for free from the Mac App Store (a large download, allow some time), open it once and accept the license.</li>
+  <li>In Xcode › Settings › Components, download <b>visionOS</b>. It holds the visionOS SDK, the part Xcode needs to build apps for Vision Pro. The download also brings the visionOS Simulator (a few GB); the installer does not use it, but Xcode offers no way to skip it.</li>
+  <li>The build tools cmake, ninja and uv. With Homebrew: <code>brew install cmake ninja uv</code>. The installer's first step tells you what is missing and shows the command.</li>
+  <li>Sign in under Xcode › Settings › Accounts; a free Apple account works. Passwords go only into Xcode or macOS dialogs; the installer never asks for one.</li>
+  <li>While signing, macOS may ask for your Mac password: enter it, then click Always Allow with the mouse.</li>
+</ul>
+</section>
+
+<section id="game">
+<h2>Game files</h2>
+<p>You need your own Wii U copy as a <b>decrypted game folder</b> (with <code>code</code>, <code>content</code> and <code>meta</code> inside) plus the v208 update (1.5.0, the last Wii U update). Select the base game and the update together; the installer combines them, so there is no need to copy the update over the base. Japan, USA and Europe copies all work; a Simplified Chinese patched copy works as long as <code>code/U-King.rpx</code> is unchanged.</p>
+<p><b>Already playing in Cemu?</b></p>
+<table>
+  <tr><td>Base game</td><td>Installed into Cemu: <code>mlc01/usr/title/00050000/&lt;id&gt;</code>; loaded straight from the game list: the folder in the list</td></tr>
+  <tr><td>v208 update</td><td><code>mlc01/usr/title/0005000e/&lt;id&gt;</code></td></tr>
+  <tr><td>id</td><td>Japan <code>101c9300</code>, USA <code>101c9400</code>, Europe <code>101c9500</code></td></tr>
+  <tr><td>Where mlc01 is</td><td>Cemu's Options › General settings › General, Custom MLC path (MLC path in older versions). If you never changed it: <code>~/Library/Application Support/Cemu/mlc01</code></td></tr>
+</table>
+<p>Simplest: choose the <code>mlc01/usr/title</code> folder itself. The installer finds the base and the update and ignores other games.</p>
+<p class="note">Not supported: Cemu's single-file <code>.wua</code> archives (games converted in the Title Manager) and <code>.wud</code> / <code>.wux</code> disc images. Cemu cannot unpack a <code>.wua</code> back into a folder, so use the original game folder.</p>
+<p class="note">The installer only reads and copies; your original files are never moved or changed. If you rearrange files yourself, copy them, don't move them.</p>
+</section>
+
+<section id="pair">
+<h2>Connect Vision Pro</h2>
+<p>Put Vision Pro on the same Wi-Fi as your Mac, then:</p>
+<ol>
+  <li>Vision Pro: open Settings › General › Remote Devices and stay on that page.</li>
+  <li>Mac: in Xcode's Device Hub, click <b>+</b> › <b>Pair Nearby Device</b>, pick your Vision Pro, click Next and type the code the headset shows. Older Xcode has no Device Hub: use Window › Devices and Simulators, select Vision Pro and click Pair.</li>
+  <li>Vision Pro: after pairing, Developer Mode appears in Settings › Privacy &amp; Security. Turn it on and restart when asked; after the restart, tap Turn On.</li>
+</ol>
+<p class="note">The installer keeps looking every few seconds and continues once the headset is paired. If it can't find it, put the headset on, unlock it and check that both are on the same Wi-Fi.</p>
+</section>
+
+<section id="install">
+<h2>Install</h2>
+<ul>
+  <li>Install compiles on your Mac (about a quarter of an hour the first time), signs, installs on the headset and sends the game over Wi-Fi (about 13 GB, roughly half an hour).</li>
+  <li>No need to wear Vision Pro while compiling. For the install and the transfer, wear it and keep it unlocked; the card tells you when. Your Mac does not go to sleep during the install.</li>
+  <li>With a free account, before the first launch trust your Apple account in Vision Pro Settings › General › VPN &amp; Device Management.</li>
+  <li>When the transfer is done, the installer reopens SheikahVision on the headset and it imports the game by itself (progress on its home screen, a few minutes). Then play. Leaving midway is fine, it resumes next time; if it doesn't start by itself, tap <b>Prepare Game</b> › <b>Check and import</b>.</li>
+</ul>
+</section>
+
+<section id="renew">
+<h2>Renew</h2>
+<p>An app signed with a free Apple account stops opening after 7 days; a paid developer account lasts a year. Open the installer and choose Renew signing: it only re-signs and reinstalls, with no compiling and no game transfer, and <b>your saves are kept</b>. Wear the headset while renewing.</p>
+</section>
+
+<section id="update">
+<h2>Update</h2>
+<p>Check for updates on the home page opens the GitHub releases page. Download the new installer and open it; the home page then offers Install new version, which rebuilds with the new code and installs over the app. Your game and saves are kept, and the game is not sent again if the headset already has it. The installer's version is shown at the bottom right of the window.</p>
+</section>
+
+<section id="files">
+<h2>Files on your Mac</h2>
+<ul>
+  <li>The game copy and build caches live in <code>~/Library/Application Support/SheikahVision</code>. The Game files button on the home page opens the game folder in Finder.</li>
+  <li>The 13 GB package sent to the headset is deleted from your Mac after the transfer.</li>
+  <li>Once the game is on the headset you may delete the game copy on your Mac to free space: renewing still works, and installing a new version will ask for the game folder again.</li>
+  <li>Something wrong? Help › Export diagnostics. It contains no game files, keys or saves.</li>
+</ul>
+</section>
+</main></body>
+</html>

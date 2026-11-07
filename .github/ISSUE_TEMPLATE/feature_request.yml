@@ -1,0 +1,28 @@
+name: Feature or VR interaction idea
+description: Suggest a feature, a control or a comfort improvement.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe the experience in the headset.
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: References
+      description: How BetterVR or another VR game does it, links, videos.
+  - type: textarea
+    id: approach
+    attributes:
+      label: Possible approach
+      description: Optional — files, hooks or APIs you think are involved.
+  - type: checkboxes
+    id: legal
+    attributes:
+      label: Confirmation
+      options:
+        - label: This request contains no game files, keys, dumps or links to them.
+          required: true

@@ -1,0 +1,71 @@
+name: Bug report
+description: Something does not work as it should in the game, the VR layer or the launcher.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please **do not attach game files, keys, dumps, recompiled code or IPA files**. Logs and short gameplay clips are fine.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where does it happen?
+      options:
+        - Apple Vision Pro (M5)
+        - Apple Vision Pro (M2)
+        - Mac (VR mode)
+        - Mac (flat)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS version
+      placeholder: visionOS 27.0.1 / macOS 26.1
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: Game copy
+      options:
+        - Japan, v208
+        - USA, v208
+        - Europe, v208
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Load a save near a ladder
+        2. Grab the ladder and push the left stick up
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: runtime.log excerpt (optional)
+      description: Optional, but it often shows the cause. Paste the lines around the problem (remove anything personal). The Logs section of docs/BUILDING.md shows how to get the log.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or a short video
+  - type: checkboxes
+    id: legal
+    attributes:
+      label: Confirmation
+      options:
+        - label: This report contains no game files, keys, dumps, recompiled code or IPA files, and no links to them.
+          required: true

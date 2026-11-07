@@ -1,0 +1,76 @@
+# Never commit game data or anything derived from it
+generated/
+*.rpx
+*.rpl
+*.wud
+*.wux
+*.app
+*.ipa
+/code/
+/content/
+/meta/
+/game/
+/saves/
+*.sav
+# the optional experience save (the author's own completed save, 2026-11-17) is published
+!ios/assets/experience-save/*.sav
+!ios/assets/experience-save/*/*.sav
+titlekeys.txt
+keys.txt
+*.key
+
+# Build output and logs
+build/
+build-*/
+.build/
+*.log
+captures/
+
+# Local configuration and signing
+local.env
+*.mobileprovision
+*.p12
+*.cer
+
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
+*.xcuserstate
+xcuserdata/
+
+# merged from the development tree (build output and game data rules)
+# Build outputs and anything generated from game files - never commit these.
+build/
+build-*/
+generated/
+dist/
+ios-deps
+ios/local.env
+*.app
+*.ipa
+*.log
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# App icon: bring your own (see README).
+ios/assets/Assets.xcassets/AppIcon.appiconset/*.png
+
+# Game files and keys, in case one is copied in by accident.
+/game/
+*.rpx
+*.rpl
+*.wud
+*.wux
+*.key
+*.tik
+*.tmd
+*.h3
+*.sarc
+*.pack
+*.sbfres
+*.bfres
+keys.txt
+

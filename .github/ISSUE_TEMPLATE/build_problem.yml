@@ -1,0 +1,45 @@
+name: Build or setup problem
+description: Building, signing, installing or importing the game files fails.
+labels: ["build", "needs-triage"]
+body:
+  - type: input
+    id: mac
+    attributes:
+      label: Mac and macOS version
+      placeholder: MacBook Pro M3, macOS 26.1
+    validations:
+      required: true
+  - type: input
+    id: xcode
+    attributes:
+      label: Xcode version and visionOS SDK
+      placeholder: Xcode 26.1, visionOS 26.1 SDK
+    validations:
+      required: true
+  - type: dropdown
+    id: step
+    attributes:
+      label: Which step fails?
+      options:
+        - Recompiling the game
+        - Building the app
+        - Signing
+        - Installing on the headset
+        - Importing game files on the headset
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Command and full error output
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: legal
+    attributes:
+      label: Confirmation
+      options:
+        - label: I am using my own legally purchased copy, and this report contains no game files, keys or links to them.
+          required: true
