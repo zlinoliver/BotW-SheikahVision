@@ -4,6 +4,9 @@
 
 **在 Apple Vision Pro 上本地运行的《塞尔达传说 旷野之息》第一人称 VR，不需要 PC，不需要串流。**
 
+基于 Crementif 的 **[BetterVR](https://github.com/Crementif/BotW-BetterVR)** 和 Ishaan Kalra 的 **[BotWRecomp](https://github.com/IshaanKalra2103/BotWRecomp)**。<br>
+<sub>正是 BetterVR 多年来把旷野之息做成 VR 的工作，才让这个项目成为可能。</sub>
+
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 <img src="docs/images/bokoblin-axe-fight.gif" alt="在 Apple Vision Pro 上第一人称用斧头和波克布林战斗。" width="800"><br>
@@ -24,7 +27,7 @@
 
 - **运行时不用模拟器。** 编译时在你的 Mac 上把 Wii U 可执行文件静态重编译成 C++（[BotWRecomp](https://github.com/IshaanKalra2103/BotWRecomp)），再和重写的 Wii U 系统运行时一起编译成 visionOS App。
 - **图形**走 Cemu 的 Latte 渲染器，后端是 Metal。
-- **VR 改写层**（双眼渲染、第一人称相机与身体、体感操作）沿用 PC 版 VR 模组 [BetterVR](https://github.com/Crementif/BotW-BetterVR) 的做法，适配到 visionOS（CompositorServices、ARKit、PS VR2 Sense 手柄）。
+- **VR 改写层建立在 Crementif 的 [BetterVR](https://github.com/Crementif/BotW-BetterVR) 之上**（同一款游戏的 PC 版 VR 模组）：双眼渲染、第一人称相机与身体、体感操作、相关研究和游戏地址都来自 BetterVR，部分补丁移植成了 C++；旷野视界把它们适配到 visionOS（CompositorServices、ARKit、PS VR2 Sense 手柄）。
 
 ## 功能
 

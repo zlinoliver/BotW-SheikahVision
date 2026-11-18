@@ -4,6 +4,9 @@
 
 **Breath of the Wild in first-person VR, running natively on Apple Vision Pro — no PC, no streaming.**
 
+Built on **[BetterVR](https://github.com/Crementif/BotW-BetterVR)** by Crementif and **[BotWRecomp](https://github.com/IshaanKalra2103/BotWRecomp)** by Ishaan Kalra.<br>
+<sub>BetterVR's years of work on Breath of the Wild in VR are what made this possible.</sub>
+
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 <img src="docs/images/bokoblin-axe-fight.gif" alt="First-person axe fight against a Bokoblin on Apple Vision Pro." width="800"><br>
@@ -24,7 +27,7 @@ SheikahVision turns Breath of the Wild into a first-person VR game on Apple Visi
 
 - **No emulator at run time.** The Wii U executable is statically recompiled into C++ on your Mac at build time ([BotWRecomp](https://github.com/IshaanKalra2103/BotWRecomp)), then compiled into a visionOS app together with a rewritten Wii U system runtime.
 - **Graphics** go through Cemu's Latte renderer on Metal.
-- **The VR layer** — stereo rendering, first-person camera and body, motion controls — follows the approach of [BetterVR](https://github.com/Crementif/BotW-BetterVR), the PC VR mod for the same game, adapted to visionOS (CompositorServices, ARKit, PS VR2 Sense controllers).
+- **The VR layer is built on [BetterVR](https://github.com/Crementif/BotW-BetterVR)** by Crementif, the PC VR mod for the same game: its stereo rendering, first-person camera and body, motion controls, research and game addresses, with parts of its patches ported to C++. SheikahVision adapts them to visionOS (CompositorServices, ARKit, PS VR2 Sense controllers).
 
 ## Features
 
