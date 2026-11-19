@@ -8,6 +8,20 @@ What changed in each version of SheikahVision. The same notes are on the [Releas
 
 **如何更新：** 从 Releases 下载新的安装器，打开后选择 **安装新版本**。App 会在你的 Mac 上重新编译并覆盖安装，头显上的游戏和存档都会保留。
 
+## 0.1.1
+
+### Fixed
+
+- The right eye's picture shook when turning the head or moving, while the left eye was steady. The right eye is drawn across two frames, so it was made with one head pose but reprojected as if it had the left eye's newer pose. Each eye is now drawn and reprojected with its own pose (found with headset A/B tests on Apple Vision Pro M5).
+- A frame now uses per-pixel depth for reprojection only when both eyes' depth arrived for it; before, an eye whose depth was missing used depth from three frames earlier.
+- On a fresh install, the app now creates its **Import** folder at first launch, so it shows in the Files app right away as the place to put a game package. Before, it appeared only after **Prepare Game › Check and import**.
+
+### 修复
+
+- 转头或移动时右眼画面抖动，左眼稳定。右眼的画面是跨两帧完成的：画的时候用的是一个头部姿态，补偿时却按左眼较新的姿态处理。现在每只眼都按自己的姿态绘制和补偿（在 Apple Vision Pro M5 上通过对比测试定位）。
+- 只有两只眼的深度都到齐时，这一帧才使用逐像素深度做补偿；之前缺深度的那只眼会用三帧前的深度。
+- 全新安装后，App 首次启动就会建好 **Import** 文件夹，「文件」App 里马上能看到放游戏包的位置；之前要先点 **准备游戏 › 检查并导入** 才会出现。
+
 ## 0.1.0 — first public release / 首个公开版本
 
 ### New
