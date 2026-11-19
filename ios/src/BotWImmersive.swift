@@ -65,6 +65,8 @@ final class BotWImmersiveDelegate: NSObject, UIHostingSceneDelegate {
         .immersionStyle(selection: .constant(style), in: .mixed, .full)
         .persistentSystemOverlays(.hidden)
         // the player's real hands are hidden (Link's hands are drawn); BOTW_VR_HANDS=1 shows them, with what they hold
+        // (the PS VR2 controllers, as far as the system cuts them out). Shown 2026-11-06 to 11-18 for the demo videos;
+        // hidden in the dev app too since 2026-11-18 (user)
         .upperLimbVisibility(handsVisible ? .visible : .hidden)
     }
 }
@@ -716,8 +718,14 @@ final class BotWCompositor {
                                              (projection.columns.2.y + 1) / projection.columns.1.y,
                                              (projection.columns.2.y - 1) / projection.columns.1.y)
                     var turn = matrix_identity_float4x4
-                    if warp, let renderedFromDevice {
-                        turn = (renderedFromDevice * view.transform).inverse * (shownFromDevice * view.transform)
+                    // each eye from the pose it was drawn with: the right eye can be a pose behind the left
+                    // (vr_render.cpp botw_vr_latch_right_pose; device 2026-11-19, the right eye shook)
+                    let eyeTag = index == 1 ? picture.pose_tag_eye.1 : picture.pose_tag_eye.0
+                    let eyeRendered = (eyeTag & 0x100) != 0
+                        ? anchors[UInt8(truncatingIfNeeded: eyeTag)]?.originFromAnchorTransform ?? renderedFromDevice
+                        : renderedFromDevice
+                    if warp, let eyeRendered {
+                        turn = (eyeRendered * view.transform).inverse * (shownFromDevice * view.transform)
                     }
                     let fade = Float(min(max(Date().timeIntervalSince(enteredAt), 0) / max(fadeIn, 0.01), 1))
                     var params = ViewParams(

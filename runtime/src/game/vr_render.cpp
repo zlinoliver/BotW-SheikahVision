@@ -140,7 +140,7 @@ BotWVRPose g_pose;
 bool g_have_pose = false;
 std::atomic<bool> g_have_center{false};  // cleared by a recentre (the menu)
 M4 g_center_inverse;  // inverse of the recentred head
-uint32_t g_frame_pose_id;  // the pose of the frame being drawn (tagged onto its eye images)
+std::atomic<uint32_t> g_frame_pose_id[2];  // each eye's pose as its camera was last made (tagged onto its image)
 
 float env_float(const char* name, float dflt);
 BotWVRPose fake_pose() {  // a Mac: the head still (or swaying), Vision Pro-like eyes
@@ -233,6 +233,27 @@ BotWVRPose g_frame_pose[2];
 std::atomic<uint32_t> g_frame_seq{0};  // the slot in use is g_frame_seq & 1
 
 const BotWVRPose& current_pose() { return g_frame_pose[g_frame_seq.load(std::memory_order_acquire) & 1]; }
+
+// The right eye is made in two halves (vr_frame.cpp): its calc pass at the end of a frame, its draw at the start of the
+// next, after botw_vr_new_frame has taken the next pose. Its camera was built from one pose in the calc and the next in
+// the draw, and its picture went to the compositor tagged with the left eye's (the set kept the last eye's tag), so the
+// right eye alone was warped by about one game frame of head motion it never had: it shook when the head turned or the
+// player moved, the left eye did not (device 2026-11-19, M5; pose prediction makes consecutive poses jump more, so with
+// BOTW_VR_PREDICT=0 it went away). Now the right eye keeps the pose its calc pass started with until its next calc
+// (vr_frame.cpp calls botw_vr_latch_right_pose after set_eye(1)), and each eye's picture carries its own pose tag, so
+// the compositor warps each eye from the pose it was really drawn with. The frame's two pose slots keep that pose
+// intact: the next frame writes the other slot. BOTW_VR_RIGHT_POSE_HOLD=0: the old behaviour
+std::atomic<uint32_t> g_right_seq{0};
+std::atomic<bool> g_right_latched{false};
+bool right_pose_hold() {
+    static const bool on = [] { const char* e = getenv("BOTW_VR_RIGHT_POSE_HOLD"); return !(e && strcmp(e, "0") == 0); }();
+    return on;
+}
+const BotWVRPose& eye_pose(int eye) {
+    if (eye == 1 && right_pose_hold() && g_right_latched.load(std::memory_order_acquire))
+        return g_frame_pose[g_right_seq.load(std::memory_order_acquire) & 1];
+    return current_pose();
+}
 
 float env_float(const char* name, float dflt);
 bool first_person();
@@ -470,8 +491,8 @@ M4 eye_world(uint32_t cam, int eye, const BotWVRPose& pose) {
 }
 
 void eye_camera_view(uint32_t cam, uint32_t out, int eye) {
-    const BotWVRPose& pose = current_pose();
-    g_frame_pose_id = pose.id;
+    const BotWVRPose& pose = eye_pose(eye);
+    g_frame_pose_id[eye & 1].store(pose.id, std::memory_order_relaxed);
     const M4 world_from_eye = eye_world(cam, eye, pose);
     // back into a LookAtCamera: rows of the view = the eye's axes, pos, at = pos + forward, up
     float pos[3] = {world_from_eye.at(0, 3), world_from_eye.at(1, 3), world_from_eye.at(2, 3)};
@@ -844,6 +865,12 @@ bool first_person_event(const char* name) {
 void vr_throw_track_frame();  // vr_aim.cpp
 
 // vr_frame.cpp, at the start of each frame (view mode): the newest pose becomes the frame's
+// vr_frame.cpp, right after set_eye(1): the right eye keeps this frame's pose through its calc and the next draw
+extern "C" void botw_vr_latch_right_pose(void) {
+    g_right_seq.store(g_frame_seq.load(std::memory_order_acquire), std::memory_order_release);
+    g_right_latched.store(true, std::memory_order_release);
+}
+
 extern "C" void botw_vr_new_frame(PPCContext* c) {
     if (!view_mode()) return;
     vr_throw_track_frame();
@@ -1708,7 +1735,7 @@ BOTW_SITE(0x039b3044) {
         uint32_t color = r32(c->r[26] + 0x1c);  // agl::RenderBuffer::mColorBuffer[0]
         if (color) {
             // view images carry their pose (low 8 bits of its id) and a view mark (bit 8); screen images neither
-            uint32_t tag = view_now() ? (0x100 | (g_frame_pose_id & 0xff)) << 16 : 0;
+            uint32_t tag = view_now() ? (0x100 | (g_frame_pose_id[vr::eye() & 1].load(std::memory_order_relaxed) & 0xff)) << 16 : 0;
             guest_call(c, dispatch::export_thunk("gx2", "GX2CopyColorBufferToScanBuffer"),
                        {color + 0xbc, VR_EYE_TARGET | (uint32_t)vr::eye() | tag});  // its GX2ColorBuffer
             // and the scene's depth (agl::RenderBuffer::mDepthTarget, BetterVR patch_RND_Find3DFrameBuffer.asm): the

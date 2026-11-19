@@ -12,6 +12,7 @@ typedef struct {
     uint64_t serial;    // the frame set's number; the set is complete once the shared event reaches it
     void* depth[2];     // id<MTLTexture> or NULL, R32Float: each eye's depth buffer as the game wrote it (0..1)
     float depth_range[4];  // the eyes' projection: near, far (m), the depth scale and offset of its device matrix
+    uint32_t pose_tag_eye[2];  // each eye's own pose tag (same form as pose_tag): the right eye can be a pose behind
 } BotWVRFrame;
 
 // The headset's pose for the game's cameras (view mode, BOTW_VR_MODE=view), from the compositor each headset frame.

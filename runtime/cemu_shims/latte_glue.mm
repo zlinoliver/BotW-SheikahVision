@@ -180,9 +180,19 @@ struct VRSet {
     MTL::Texture* hud = nullptr;
     MTL::Texture* depth[2] = {};
     bool hud_valid = false, stereo = false, depth_valid = false;
+    uint8 depth_mask = 0, eye_mask = 0;  // bit per eye whose depth / picture reached this set (since it was last closed)
     float depth_range[4] = {};
     uint32 pose_tag = 0;
+    uint32 pose_tags[2] = {0, 0};  // each eye's own (vr_render.cpp botw_vr_latch_right_pose)
 };
+// Each eye's depth drives that eye's per-pixel reprojection in the compositor (and the system's, through the drawable's
+// depth). A set used to count as having depth as soon as one eye's arrived, so when the other eye's depth copy was
+// missing (dropped right after a command-buffer error, item 116) that eye was warped with the depth left in its texture
+// three sets earlier: only that eye jumped as the head turned or moved (device 2026-11-19: the right eye shook, the left
+// was steady). Now a set has depth only when both eyes' depth came in for it; otherwise both eyes use the single
+// distance for that frame. The counts go to runtime.log every 900 sets and to botw_vr_set_stats.
+struct VRSetStats { uint64 sets = 0, stereo = 0, mono_fallback = 0, depth_partial[2] = {0, 0}, eye_partial[2] = {0, 0}, pose_split = 0; };
+VRSetStats g_vr_stats;  // GPU thread writes; botw_vr_set_stats reads (a torn read of a counter is harmless)
 VRSet g_vr_sets[3];
 MTL::SharedEvent* g_vr_event = nullptr;
 uint64 g_vr_serial = 0;              // GPU thread: the set being written is g_vr_serial % 3, published as g_vr_serial + 1
@@ -398,6 +408,8 @@ extern "C" int botw_vr_latest_frame(BotWVRFrame* out) {
     out->hud = set.stereo && set.hud_valid ? set.hud : nullptr;
     out->stereo = set.stereo;
     out->pose_tag = set.pose_tag;
+    out->pose_tag_eye[0] = set.pose_tags[0];
+    out->pose_tag_eye[1] = set.stereo ? set.pose_tags[1] : set.pose_tags[0];
     out->serial = done;
     const bool depth = set.stereo && set.depth_valid && set.depth[0] && set.depth[1];
     out->depth[0] = depth ? set.depth[0] : nullptr;
@@ -506,10 +518,12 @@ extern "C" void botw_vr_publish(LatteTextureView* view, int kind, uint32 pose_ta
         }
         std::lock_guard<std::mutex> l(g_vr_lock);
         mr->DrawDepthToTexture(view, t);
-        set.depth_valid = true;
+        set.depth_mask |= 1 << (kind - 3);
     } else {
         if (!vr_fx_eye(view, kind & 1, set.eye[kind & 1])) vr_draw(view, set.eye[kind & 1], eye_sharpen());
+        set.eye_mask |= 1 << (kind & 1);
         set.pose_tag = pose_tag;
+        set.pose_tags[kind & 1] = pose_tag;
         if (kind == 0) keep_thumbnail(vr_fx_thumbnail_source(set.eye[0]));
     }
 }
@@ -521,6 +535,22 @@ extern "C" void botw_vr_close_frame(LatteTextureView* tv, bool eyes_shown) {
     if (!g_vr_event) g_vr_event = mr->GetDevice()->newSharedEvent();
     VRSet& set = vr_writing();
     set.stereo = eyes_shown;
+    set.depth_valid = eyes_shown && set.depth_mask == 3;  // both eyes' depth from this frame, or none (above)
+    g_vr_stats.sets++;
+    if (eyes_shown) {
+        g_vr_stats.stereo++;
+        if (set.pose_tags[0] != set.pose_tags[1]) g_vr_stats.pose_split++;  // the eyes drawn from different poses
+        for (int e = 0; e < 2; e++)
+            if (set.depth_mask != 0 && !(set.depth_mask & (1 << e))) g_vr_stats.depth_partial[e]++;
+    } else if (set.eye_mask == 1 || set.eye_mask == 2) {  // one eye's picture came, the other's did not: the TV picture instead
+        g_vr_stats.mono_fallback++;
+        for (int e = 0; e < 2; e++)
+            if (!(set.eye_mask & (1 << e))) g_vr_stats.eye_partial[e]++;
+    }
+    if (g_vr_stats.sets % 900 == 0)
+        cemuLog_log(LogType::Force, "vr sets: {} ({} stereo, {} with the eyes on different poses), missing depth L {} R {}, missing picture L {} R {} (mono fallback {})",
+            g_vr_stats.sets, g_vr_stats.stereo, g_vr_stats.pose_split, g_vr_stats.depth_partial[0], g_vr_stats.depth_partial[1],
+            g_vr_stats.eye_partial[0], g_vr_stats.eye_partial[1], g_vr_stats.mono_fallback);
     botw_vr_depth_range(set.depth_range);
     if (!eyes_shown) {
         vr_draw(tv, set.eye[0]);
@@ -550,6 +580,19 @@ extern "C" void botw_vr_close_frame(LatteTextureView* tv, bool eyes_shown) {
     VRSet& next = vr_writing();
     next.hud_valid = false;
     next.depth_valid = false;
+    next.depth_mask = 0;
+    next.eye_mask = 0;
+}
+
+// The counts above since the game started (for diagnostics): sets closed, stereo sets, sets
+// with one eye's depth missing (left, right), frames that fell back to the TV picture with one eye's picture missing,
+// stereo sets whose eyes were drawn from different poses
+extern "C" void botw_vr_set_stats(uint64_t out[8]) {
+    out[0] = g_vr_stats.sets; out[1] = g_vr_stats.stereo;
+    out[2] = g_vr_stats.depth_partial[0]; out[3] = g_vr_stats.depth_partial[1];
+    out[4] = g_vr_stats.eye_partial[0]; out[5] = g_vr_stats.eye_partial[1];
+    out[6] = g_vr_stats.mono_fallback;
+    out[7] = g_vr_stats.pose_split;
 }
 
 extern "C" void botw_capture_window_hook() {

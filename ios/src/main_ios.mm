@@ -86,6 +86,12 @@ int ios_main(int argc, char** argv) {
         withIntermediateDirectories:YES attributes:nil error:nil];
     [kReadme writeToFile:[docs stringByAppendingPathComponent:@"README.txt"] atomically:YES
                 encoding:NSUTF8StringEncoding error:nil];
+#if TARGET_OS_VISION
+    // the launcher's pending-import folder (BotWGameImport.swift `pending`), made at the first launch so the Files app
+    // shows it right away; until now it appeared only once Check and import (recover()) ran (device 2026-11-18)
+    [fm createDirectoryAtPath:[docs stringByAppendingPathComponent:@"Import"] withIntermediateDirectories:YES
+                   attributes:nil error:nil];
+#endif
 
     std::vector<std::string> args(argv, argv + argc);
     bool has_game_arg = false;

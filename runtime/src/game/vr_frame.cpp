@@ -104,6 +104,7 @@ void present(PPCContext* c, uint32_t fw) {
 
 extern "C" void botw_vr_new_frame(PPCContext* c);  // vr_render.cpp: the frame's headset pose and event (view mode)
 extern "C" void botw_gx2_vr_set_eye(unsigned eye);  // gx2/GX2_RenderTarget.cpp: marks the eye in the GPU command stream
+extern "C" void botw_vr_latch_right_pose(void);     // vr_render.cpp
 
 BOTW_REPLACE(0x031fa880) {
     if (!vr::enabled()) return orig_0x031fa880(c);
@@ -146,6 +147,7 @@ BOTW_REPLACE(0x031fa880) {
     if (wait_prev_draw) ts_hi = prev_hi, ts_lo = prev_lo;
     gx2(c, "GX2WaitTimeStamp", {ts_hi, ts_lo});
     set_eye(1);
+    botw_vr_latch_right_pose();  // vr_render.cpp: the right eye's pose through its calc and the next frame's draw
     vr::g_calc_pass.store(2, std::memory_order_relaxed);
     vcall(c, fw, kProcCalc);
     vr::g_calc_pass.store(0, std::memory_order_relaxed);
