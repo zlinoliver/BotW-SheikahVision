@@ -7,6 +7,8 @@
 基于 Crementif 的 **[BetterVR](https://github.com/Crementif/BotW-BetterVR)** 和 Ishaan Kalra 的 **[BotWRecomp](https://github.com/IshaanKalra2103/BotWRecomp)**。<br>
 <sub>正是 BetterVR 多年来把旷野之息做成 VR 的工作，才让这个项目成为可能。</sub>
 
+[![Listed in the AVP Ports Index](https://img.shields.io/badge/AVP_Ports_Index-listed-0A84FF)](https://github.com/edgytoast/avp-ports-index/blob/main/ports/sheikahvision.md)
+
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 <img src="docs/images/bokoblin-axe-fight.gif" alt="在 Apple Vision Pro 上第一人称用斧头和波克布林战斗。" width="800"><br>

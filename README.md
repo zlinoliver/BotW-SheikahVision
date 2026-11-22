@@ -7,6 +7,8 @@
 Built on **[BetterVR](https://github.com/Crementif/BotW-BetterVR)** by Crementif and **[BotWRecomp](https://github.com/IshaanKalra2103/BotWRecomp)** by Ishaan Kalra.<br>
 <sub>BetterVR's years of work on Breath of the Wild in VR are what made this possible.</sub>
 
+[![Listed in the AVP Ports Index](https://img.shields.io/badge/AVP_Ports_Index-listed-0A84FF)](https://github.com/edgytoast/avp-ports-index/blob/main/ports/sheikahvision.md)
+
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 <img src="docs/images/bokoblin-axe-fight.gif" alt="First-person axe fight against a Bokoblin on Apple Vision Pro." width="800"><br>
