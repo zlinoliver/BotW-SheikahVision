@@ -8,6 +8,22 @@ What changed in each version of SheikahVision. The same notes are on the [Releas
 
 **如何更新：** 从 Releases 下载新的安装器，打开后选择 **安装新版本**。App 会在你的 Mac 上重新编译并覆盖安装，头显上的游戏和存档都会保留。
 
+## Unreleased
+
+### Changed (Apple Vision Pro M2 only)
+
+- **Frame pacing that follows what the game can hold (#12).** On M2 the game runs below 45 fps, and each picture stayed on screen for 2, 3 or 4 refreshes in no order, which looked like heavy judder. The game and the display now share one pace: 45, 30 or 22.5 fps, whichever the game can hold evenly, chosen automatically (45 or 22.5 fps when visionOS lowers the display to 45 Hz on a hot headset). **Steady 30 fps** in the settings still fixes it at 30.
+- **Lighter Smooth preset on M2**, and Smooth is the default on a fresh install. If you started an earlier version, choose **Smooth** in the settings yourself.
+- The HUD panel follows your head sooner and more gently, so the minimap no longer slides out of view and jumps back.
+- M5 and other models are unchanged.
+
+### 变更（仅 Apple Vision Pro M2）
+
+- **帧节奏按游戏能稳住的帧率走（#12）。** M2 上游戏跑不到 45 帧，每张画面停留 2、3、4 次刷新没有规律，看起来抖得厉害。现在游戏和显示共用一个节奏，自动在 45、30、22.5 帧中选一个能稳住的（头显过热、visionOS 把显示降到 45 Hz 时在 45 和 22.5 帧之间选）。设置里的 **稳定 30 帧** 仍会固定为 30。
+- **M2 的「流畅」档更轻**，全新安装默认就是「流畅」。之前启动过旧版的，请在设置里自己选 **流畅**。
+- HUD 面板更早、更平缓地跟随头部，小地图不会再滑出视野后突然弹回。
+- M5 和其它机型不变。
+
 ## 0.1.1
 
 ### Fixed
