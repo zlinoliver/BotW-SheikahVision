@@ -323,7 +323,29 @@ final class BotWCompositor {
     private var heldPicture: BotWVRFrame?  // the picture on screen and how many headset frames it has shown
     private var loggedEyeSize = (0, 0)  // the eye picture's size last written to runtime.log (MetalFX changes it)
     private var heldFrames = 0
-    private let minimumShows = Int(ProcessInfo.processInfo.environment["BOTW_VR_PACE"] ?? "") ?? 2
+    // BOTW_VR_PACE: 2 (45 fps), 3 (a steady 30), 4, or auto (the launcher's default on the M2 since 2026-11-20; the M5
+    // keeps 2, exactly as before, and a missing variable reads as 2 here and in vr_render.cpp). An M2 tester's
+    // log (issue #12, v0.1.1: GPU 100% busy, 28 fps) had the pictures shown 3 and 4 times in no order (3x 68%, 4+x 21%,
+    // 2x 11%): the judder. Auto (tallyPace) sets the game's pace too (botw_vr_set_pace, vr_render.cpp waits for it):
+    // up a step when too many of 90 pictures missed their refresh (2 -> 3 at 40%, 3 -> 4 at 20%: a 3/4 mix judders more
+    // than an even 22.5 fps), down a step when the game's own frame time fits the faster pace with 15% to spare for two
+    // windows running, never sooner than a wait after the last switch (20 s, doubled when a step down was undone
+    // within 30 s, up to 160 s; Fable's review 2026-11-20: a step back down by readiness alone swung every 8-9 s)
+    private let paceAuto = ProcessInfo.processInfo.environment["BOTW_VR_PACE"] == "auto"
+    private var minimumShows = Int(ProcessInfo.processInfo.environment["BOTW_VR_PACE"] ?? "") ?? 2
+    private var paceWindow = 0, paceMissed = 0, paceSwitches = 0, paceFits = 0
+    private var paceSwitchedAt = Date(), paceDownAt = Date.distantPast, paceDwell = 20.0
+    // the loop at 60 Hz or less (visionOS drops it to 45 when the headset is hot: a second M2 log, 2026-11-21, thermal
+    // serious from the start and the loop at 45 Hz all along, every picture shown twice = 22.5 fps with the game at 26-32):
+    // the pace then counts 1-2 of those frames (45 / 22.5 fps) instead of 2-4
+    private var paceSlowLoop = false
+    // the HUD layer of a stereo set that came without one: the last HUD kept on for up to BOTW_VR_HUD_HOLD pictures
+    // (0, off by default: the M2 recording's missing minimap was the panel sliding out of view, Fable's review; and the
+    // held texture is the one the set ring writes three sets later). The counts go to runtime.log with the timing line
+    private let hudHold = max(Int(ProcessInfo.processInfo.environment["BOTW_VR_HUD_HOLD"] ?? "") ?? 0, 0)
+    private var lastHud: MTLTexture?  // held strongly: the set's texture can be replaced on the renderer's side
+    private var hudSerial: UInt64 = 0, hudGap = 0
+    private var hudPictures = 0, hudMissing = 0, hudGaps = 0, hudLongest = 0, hudBridged = 0
     private var repeatCounts = [0, 0, 0, 0]       // pictures shown once, twice, three times, four or more
     private var correctionSum = 0.0, correctionMax = 0.0, correctionN = 0
     private final class GPUStats: @unchecked Sendable {  // the compositor's command buffers, from their completion
@@ -336,6 +358,11 @@ final class BotWCompositor {
     private var hudFollowing = false  // the HUD panel gliding back in front of the view
     private let hudWidth = envFloat("BOTW_VR_HUD_M", 1.6)
     private let hudDistance = envFloat("BOTW_VR_HUD_DISTANCE_M", 1.8)
+    // the HUD panel follows once the head looks this far from it (BOTW_VR_HUD_FOLLOW_DEG, 30), gliding a share of the way
+    // each frame (BOTW_VR_HUD_FOLLOW_K, 0.2). The launcher gives the M2 12 and 0.1 (2026-11-20: in an M2 tester's
+    // recording the minimap slid out of the view as the head turned, then jumped back, read as a flicker); the M5 keeps these
+    private let hudFollowAngle = envFloat("BOTW_VR_HUD_FOLLOW_DEG", 30) * .pi / 180
+    private let hudFollowK = min(max(envFloat("BOTW_VR_HUD_FOLLOW_K", 0.2), 0.02), 1)
     private let arSession = ARKitSession()
     private var worldTracking = WorldTrackingProvider()  // replaced when the head stays untracked (restartTracking)
     private var untrackedFrames = 0
@@ -430,6 +457,7 @@ final class BotWCompositor {
         depthState = device.makeDepthStencilState(descriptor: depth)!
         depth.depthCompareFunction = .always
         pictureDepthState = device.makeDepthStencilState(descriptor: depth)!
+        if paceAuto { botw_vr_set_pace(Int32(minimumShows)) }  // a new renderer (the space reopened) starts both at 2
         var quality = "default"
         if #available(visionOS 26.0, *) {
             layerRenderer.renderQuality = layerRenderer.configuration.maxRenderQuality
@@ -533,12 +561,12 @@ final class BotWCompositor {
             let tf = simd_normalize(SIMD3<Float>(-target.columns.2.x, 0, -target.columns.2.z))
             let angle = acos(min(max(simd_dot(cf, tf), -1), 1))
             let dy = abs(current.columns.3.y - target.columns.3.y)
-            if !hudFollowing, angle > 30 * .pi / 180 || dy > 0.3 {
+            if !hudFollowing, angle > hudFollowAngle || dy > 0.3 {
                 hudFollowing = true
                 NSLog("[vr] HUD panel follows the view (%.0f deg, %.2f m)", angle * 180 / .pi, dy)
             }
             if hudFollowing {
-                let k: Float = 0.2
+                let k = hudFollowK
                 var f = simd_normalize(cf + (tf - cf) * k)
                 if !f.x.isFinite { f = tf }
                 let right = simd_normalize(simd_cross(f, SIMD3<Float>(0, 1, 0)))
@@ -566,7 +594,12 @@ final class BotWCompositor {
             picture = held
         }
         if havePicture {
-            if picture.serial == heldPicture?.serial { heldFrames += 1 } else { heldPicture = picture; heldFrames = 1 }
+            if picture.serial == heldPicture?.serial {
+                heldFrames += 1
+            } else {
+                if let old = heldPicture { tallyPace(old: old, new: picture) }
+                heldPicture = picture; heldFrames = 1
+            }
         }
         if havePicture, picture.stereo != 0, let eye = texture(picture.eye.0), (eye.width, eye.height) != loggedEyeSize {
             loggedEyeSize = (eye.width, eye.height)
@@ -653,6 +686,28 @@ final class BotWCompositor {
             } else {
                 repeats += 1
             }
+        }
+        // the HUD over the view: this set's, or the last one for a few pictures when a set came without it (above)
+        var viewHud: MTLTexture? = nil
+        if viewPicture {
+            if picture.serial != hudSerial {
+                hudSerial = picture.serial
+                hudPictures += 1
+                if let hud = texture(picture.hud) {
+                    if hudGap > 0 { hudLongest = max(hudLongest, hudGap) }
+                    hudGap = 0
+                    if hudHold > 0 { lastHud = hud }  // nothing kept unless the hold is on (the M5 as before)
+                } else {
+                    if hudGap == 0 { hudGaps += 1 }
+                    hudGap += 1
+                    hudMissing += 1
+                    if hudGap <= hudHold, lastHud != nil { hudBridged += 1 }
+                }
+            }
+            viewHud = texture(picture.hud) ?? (hudHold > 0 && hudGap <= hudHold ? lastHud : nil)
+        } else if havePicture && picture.stereo == 0 {
+            lastHud = nil  // a menu or loading screen: no HUD carried over into the next view
+            hudGap = 0
         }
         var shownFromDevice = originFromDevice
         var renderedFromDevice: simd_float4x4?  // the head the picture was drawn for (the warp's source)
@@ -791,7 +846,7 @@ final class BotWCompositor {
                             mark(&u)
                         }
                     }
-                    if let originFromHud, let hud = texture(picture.hud) {
+                    if let originFromHud, let hud = viewHud {
                         let viewMatrix = (shownFromDevice * view.transform).inverse
                         var uniforms = ScreenUniforms(
                             clipFromScreen: projectionOf(index) * viewMatrix * originFromHud,
@@ -872,6 +927,12 @@ final class BotWCompositor {
             // busy share in the [gpu] lines it gives the GPU's work per second
             botw_vr_log(String(format: "vr load: view pass %.2f ms each, %.0f ms of GPU a second", stats.runSum / Double(n) * 1000,
                                stats.runSum / max(Double(n) * frameDuration, 0.001) * 1000))
+            if paceAuto || hudHold > 0 {  // the M2's (a fixed pace, the M5, logs as before)
+                botw_vr_log(String(format: "vr pace: every %d refreshes or more (%@), %d switches; HUD missing in %d of %d pictures (%d gaps, longest %d), %d bridged (hold %d)",
+                                   minimumShows, paceAuto ? "auto" : "fixed", paceSwitches, hudMissing, hudPictures, hudGaps,
+                                   max(hudLongest, hudGap), hudBridged, hudHold))
+            }
+            hudPictures = 0; hudMissing = 0; hudGaps = 0; hudLongest = 0; hudBridged = 0
             stats.late = 0; stats.n = 0; stats.queueSum = 0; stats.queueMax = 0; stats.runSum = 0
             stats.lock.unlock()
             repeatCounts = [0, 0, 0, 0]
@@ -1207,6 +1268,50 @@ final class BotWCompositor {
             }
         }
         draw(l, lw, y)
+    }
+
+    /// BOTW_VR_PACE=auto: a stereo picture left the screen after `heldFrames` shows; switch the pace when the window says so
+    private func tallyPace(old: BotWVRFrame, new: BotWVRFrame) {
+        guard paceAuto else { return }
+        let slow = paceSlowLoop ? frameDuration > 0.013 : frameDuration > 0.015
+        if slow != paceSlowLoop {  // the same picture rate in the new loop's frames, as near as it goes
+            paceSlowLoop = slow
+            minimumShows = slow ? (minimumShows + 1) / 2 : min(minimumShows * 2, 4)
+            paceWindow = 0; paceMissed = 0; paceFits = 0
+            paceSwitchedAt = Date()
+            botw_vr_set_pace(Int32(minimumShows))
+            botw_vr_log(String(format: "vr pace: loop at %.0f Hz, every %d refreshes", 1 / max(frameDuration, 0.001), minimumShows))
+        }
+        guard old.stereo != 0, new.stereo != 0 else { paceWindow = 0; paceMissed = 0; return }  // menus, loading
+        paceWindow += 1
+        if heldFrames > minimumShows { paceMissed += 1 }
+        guard paceWindow >= 90 else { return }
+        let missed = paceMissed, window = paceWindow
+        paceWindow = 0; paceMissed = 0
+        let since = Date().timeIntervalSince(paceSwitchedAt)
+        let busy = Double(botw_vr_game_busy_ms())
+        let fasterBudget = Double(minimumShows - 1) * frameDuration * 1000 * 0.85
+        func switchTo(_ n: Int, _ why: String) {
+            if n > minimumShows, Date().timeIntervalSince(paceDownAt) < 30 { paceDwell = min(paceDwell * 2, 160) }
+            if n < minimumShows { paceDownAt = Date() }
+            minimumShows = n
+            paceSwitches += 1
+            paceSwitchedAt = Date()
+            paceFits = 0
+            botw_vr_set_pace(Int32(n))
+            botw_vr_log(String(format: "vr pace: every %d refreshes (%@; game frame %.1f ms, next wait %.0f s)", n, why, busy, paceDwell))
+        }
+        let lowest = paceSlowLoop ? 1 : 2, highest = paceSlowLoop ? 2 : 4
+        if minimumShows == lowest, minimumShows < highest, missed * 10 >= window * 4 {
+            switchTo(minimumShows + 1, "\(missed) of \(window) pictures late")
+        } else if minimumShows > lowest, minimumShows < highest, missed * 5 >= window {
+            switchTo(minimumShows + 1, "\(missed) of \(window) pictures late")
+        } else if minimumShows > lowest, missed * 20 <= window, busy > 0, busy < fasterBudget {
+            paceFits += 1
+            if paceFits >= 2, since >= paceDwell { switchTo(minimumShows - 1, String(format: "fits %.1f ms", fasterBudget)) }
+        } else {
+            paceFits = 0
+        }
     }
 
     private func texture(_ pointer: UnsafeMutableRawPointer?) -> MTLTexture? {

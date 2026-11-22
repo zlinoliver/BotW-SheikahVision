@@ -49,6 +49,15 @@ final class BotWLaunchSettings: ObservableObject {
         NSLog("[launcher] device \(id)")
         return id == "RealityDevice17,1"
     }()
+    /// the M2 (RealityDevice14,1) by name: its own pacing, HUD follow and lighter Smooth (2026-11-20, issue #12) need a
+    /// positive match, so an unknown model or a failed lookup keeps the behaviour of 0.1.x (Fable's review 2026-11-21)
+    static let isM2: Bool = {
+        var size = 0
+        sysctlbyname("hw.machine", nil, &size, nil, 0)
+        var model = [CChar](repeating: 0, count: max(size, 1))
+        sysctlbyname("hw.machine", &model, &size, nil, 0)
+        return String(cString: model) == "RealityDevice14,1"
+    }()
 
     enum Quality: String, CaseIterable, Identifiable {
         case smooth, standard, sharp
@@ -147,7 +156,7 @@ final class BotWLaunchSettings: ObservableObject {
 
     init() {
         gameLanguage = defaults.string(forKey: "gameLanguage") ?? ""
-        quality = Quality(rawValue: defaults.string(forKey: "quality") ?? "") ?? .standard
+        quality = Quality(rawValue: defaults.string(forKey: "quality") ?? "") ?? Self.defaultQuality
         turn = Turn(rawValue: defaults.string(forKey: "turn") ?? "") ?? .snap30
         firstPerson = defaults.object(forKey: "firstPerson") as? Bool ?? true
         cutscenesOnScreen = defaults.object(forKey: "cutscenesOnScreen") as? Bool ?? false
@@ -203,8 +212,12 @@ final class BotWLaunchSettings: ObservableObject {
         }
     }
 
+    /// the preset a first start gets: Standard on the M5, Smooth on the M2 (2026-11-20, issue #12: an M2 at Standard ran
+    /// 27-30 fps with 7-10 frames of latency, at Smooth 32-35 fps and about 5)
+    static var defaultQuality: Quality { isM2 ? .smooth : .standard }
+
     func reset() {
-        quality = .standard
+        quality = Self.defaultQuality
         turn = .snap30
         firstPerson = true
         cutscenesOnScreen = false
@@ -252,7 +265,14 @@ final class BotWLaunchSettings: ObservableObject {
         setenv("BOTW_VR_SHARPEN", sharpen ? "0.5" : "0", 0)
         setenv("BOTW_VR_BUTTONS", classicButtons ? "classic" : "vr", 0)
         setenv("BOTW_VR_HEIGHT", String(Double(height.rawValue) / 100), 0)
-        setenv("BOTW_VR_PACE", steady30 ? "3" : "2", 0)
+        // the M2 (2026-11-20, issue #12): auto, the pace follows what the game can hold evenly (BotWImmersive.swift
+        // tallyPace), and the HUD panel follows the head sooner and more gently. The M5 (the supported headset) keeps
+        // every 2nd refresh and the HUD's 30 degrees, exactly as in 0.1.x
+        setenv("BOTW_VR_PACE", steady30 ? "3" : Self.isM2 ? "auto" : "2", 0)
+        if Self.isM2 {
+            setenv("BOTW_VR_HUD_FOLLOW_DEG", "12", 0)
+            setenv("BOTW_VR_HUD_FOLLOW_K", "0.1", 0)
+        }
         if fastUploads {
             setenv("BOTW_BUFFER_CACHE", "redirect", 0)
             // a range bound again unchanged reuses its copy, and the upload ring is 256 MB instead of 64 (device
@@ -266,8 +286,11 @@ final class BotWLaunchSettings: ObservableObject {
         // compositor's view at 0.7 instead of 0.85 (a pass that runs 90 times a second); the crop below is the same for
         // every preset (it costs no GPU). Standard keeps 1.0x and the compositor setting
         if quality == .smooth {
-            setenv("BOTW_SMALL_BUFFER_SCALE", "0.75", 0)
-            setenv("BOTW_VR_RENDER_QUALITY", "0.7", 0)
+            // on the M2 (2026-11-20, issue #12: the GPU 100% busy at 28 fps, the compositor's view pass 2.2 ms 90 times a
+            // second, about a fifth of the GPU): the view at 0.6 (the tester's note: 1.4 ms a pass there) and the
+            // smaller targets at 0.5x, so the game can hold the steady 30 the auto pace switches to
+            setenv("BOTW_SMALL_BUFFER_SCALE", Self.isM2 ? "0.5" : "0.75", 0)
+            setenv("BOTW_VR_RENDER_QUALITY", Self.isM2 ? "0.6" : "0.7", 0)
         }
         if let q = compositorResolution.renderQuality { setenv("BOTW_VR_RENDER_QUALITY", q, 0) }
         // fixed from the headset (2026-11-05: Standard 1.5x + compositor 0.85 + 8% edge margin + merged clears: 45 fps,

@@ -136,6 +136,11 @@ std::mutex g_pose_lock;
 std::condition_variable g_pose_arrived;  // a new pose from the compositor (one per headset frame)
 std::chrono::steady_clock::time_point g_pose_time;  // when the newest pose arrived
 float g_pose_interval = 1.0f / 90;  // the headset loop's frame time, smoothed (seconds; under g_pose_lock)
+// BOTW_VR_PACE=auto (2026-11-20, issue #12, the M2): the pace the compositor chose (2, 3 or 4 headset frames a game
+// frame, BotWImmersive.swift tallyPace), and the game frame's own time to the pace's wait (its work, the GPU waits
+// included), smoothed, which tells the compositor when a faster pace fits again
+std::atomic<int> g_vr_pace_shared{2};
+std::atomic<float> g_vr_busy_ms{0};
 BotWVRPose g_pose;
 bool g_have_pose = false;
 std::atomic<bool> g_have_center{false};  // cleared by a recentre (the menu)
@@ -576,6 +581,8 @@ void check_visibility(PPCContext* c) {
 }  // namespace
 
 extern "C" int botw_vr_view_mode(void) { return view_mode(); }
+extern "C" void botw_vr_set_pace(int n) { g_vr_pace_shared.store(std::clamp(n, 1, 4), std::memory_order_relaxed); }
+extern "C" float botw_vr_game_busy_ms(void) { return g_vr_busy_ms.load(std::memory_order_relaxed); }
 extern "C" int botw_vr_view_now(void) { return view_now(); }
 
 // BOTW_VR_FOV: how much of each eye's view the game draws, per edge (plan A2, quality notes section 18). One number
@@ -1057,10 +1064,16 @@ extern "C" void botw_vr_new_frame(PPCContext* c) {
         // advanced unevenly ("a little stuttery"). Tried on 2026-11-01 when the compositor was heavy: its own loop fell to 45 Hz
         // and the game to 22 fps; since foveation and render quality 0.6 its GPU work is 1.4 ms and it has not missed a
         // deadline ("late 0/900"), which the timing line keeps watching
-        static const int pace = [] {
+        // BOTW_VR_PACE=auto: the compositor's choice (above); atoi("auto") was 0, the pace off (Fable's review 2026-11-20)
+        static const bool pace_auto = [] {
             const char* e = getenv("BOTW_VR_PACE");
-            return e ? atoi(e) : 2;
+            return e && strcmp(e, "auto") == 0;
         }();
+        static const int pace_fixed = [] {
+            const char* e = getenv("BOTW_VR_PACE");
+            return e && strcmp(e, "auto") != 0 ? atoi(e) : 2;
+        }();
+        const int pace = pace_auto ? g_vr_pace_shared.load(std::memory_order_relaxed) : pace_fixed;
         static uint32_t last_id = 0;
         // the headset's view not running (taken off, the app sent away): the game waits until it is back. Running on,
         // its GPU work, which the system no longer ran, piled up at about 0.5 GB a second until the app was killed
@@ -1078,7 +1091,9 @@ extern "C" void botw_vr_new_frame(PPCContext* c) {
         // half idle): with the loop at 60 Hz or less (frames of 15 ms or more) a game frame starts every frame
         static int effective = pace;
         // with hysteresis (to every frame above 15 ms, back below 12 ms) and a log budget (Fable's review)
-        int want = pace <= 1 ? pace : effective == 1 ? (g_pose_interval < 0.012f ? pace : 1)
+        // (auto: the compositor's pace already counts in the loop's own frames, 1-2 at 45 Hz, 2-4 at 90)
+        int want = pace_auto ? pace
+                 : pace <= 1 ? pace : effective == 1 ? (g_pose_interval < 0.012f ? pace : 1)
                                                    : (g_pose_interval > 0.015f ? 1 : pace);
         // BOTW_VR_RECOVER_90=<seconds> (an experiment, off by default): the loop has never come back from 45 Hz in the logs
         // (3 runs). With the loop slow the game keeps its pace (22.5 fps, the GPU half idle) for that long, to see if a
@@ -1089,7 +1104,7 @@ extern "C" void botw_vr_new_frame(PPCContext* c) {
             static clock::time_point light_since{}, next_try{};
             static bool light = false;
             const auto now = clock::now();
-            if (recover > 0 && pace > 1) {
+            if (recover > 0 && pace > 1 && !pace_auto) {
                 if (g_pose_interval < 0.012f) {
                     if (light) LOG("vr: recover: the loop is back at %.0f Hz after %.1f s of lighter load", 1.0f / g_pose_interval,
                                    std::chrono::duration<float>(now - light_since).count());
@@ -1106,9 +1121,23 @@ extern "C" void botw_vr_new_frame(PPCContext* c) {
             if (budget > 0) budget--, LOG("vr: headset loop at %.0f Hz, game frame every %d headset frame(s)", 1.0f / g_pose_interval, want);
             effective = want;
         }
+        // auto only (the M2): the game frame's time up to here, since the last wait ended; a fixed pace (the M5) runs
+        // exactly as before, no timing and the 40 ms limit
+        static std::chrono::steady_clock::time_point last_go{};
+        if (pace_auto) {
+            const auto arrived = std::chrono::steady_clock::now();
+            if (last_go.time_since_epoch().count() != 0) {
+                const float busy = std::chrono::duration<float, std::milli>(arrived - last_go).count();
+                if (busy > 0 && busy < 200) g_vr_busy_ms.store(g_vr_busy_ms.load(std::memory_order_relaxed) * 0.95f + busy * 0.05f,
+                                                             std::memory_order_relaxed);
+            }
+        }
+        // the wait's limit covers the pace (4 frames at 90 Hz are 44 ms, more than the 40 it was)
+        const int limit_ms = pace_auto ? std::max(40, (int)(effective * g_pose_interval * 1000.0f) + 12) : 40;
         if (g_have_pose && effective > 1 && last_id)
-            g_pose_arrived.wait_for(l, std::chrono::milliseconds(40),
+            g_pose_arrived.wait_for(l, std::chrono::milliseconds(limit_ms),
                                     [] { return g_pose.id - last_id >= (uint32_t)effective; });
+        if (pace_auto) last_go = std::chrono::steady_clock::now();
         p = g_have_pose ? g_pose : fake_pose();
         last_id = p.id;
     }

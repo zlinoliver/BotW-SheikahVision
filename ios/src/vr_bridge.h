@@ -42,6 +42,8 @@ int botw_vr_latest_frame(BotWVRFrame* out);     // the newest complete set; 0 wh
 void botw_vr_open_immersive(void);              // BotWImmersive.swift: requests the immersive space (main thread)
 int botw_vr_view_mode(void);                     // BOTW_VR_MODE=view: the game renders for the headset's eye poses
 void botw_vr_set_pose(const BotWVRPose* pose);  // the compositor's newest pose (runtime/src/game/vr_render.cpp)
+void botw_vr_set_pace(int n);    // BOTW_VR_PACE=auto: headset frames a game frame, 2-4 (vr_render.cpp)
+float botw_vr_game_busy_ms(void); // the game frame's time to the pace's wait, smoothed (ms)
 #ifdef __cplusplus
 }
 #endif
