@@ -8,7 +8,7 @@ What changed in each version of SheikahVision. The same notes are on the [Releas
 
 **如何更新：** 从 Releases 下载新的安装器，打开后选择 **安装新版本**。App 会在你的 Mac 上重新编译并覆盖安装，头显上的游戏和存档都会保留。
 
-## Unreleased
+## 0.1.2
 
 ### Changed (Apple Vision Pro M2 only)
 
