@@ -44,6 +44,7 @@ int botw_vr_view_mode(void);                     // BOTW_VR_MODE=view: the game 
 void botw_vr_set_pose(const BotWVRPose* pose);  // the compositor's newest pose (runtime/src/game/vr_render.cpp)
 void botw_vr_set_pace(int n);    // BOTW_VR_PACE=auto: headset frames a game frame, 2-4 (vr_render.cpp)
 float botw_vr_game_busy_ms(void); // the game frame's time to the pace's wait, smoothed (ms)
+int botw_vr_in_play(void);        // Link in the world, no menu or map (vr_render.cpp)
 #ifdef __cplusplus
 }
 #endif

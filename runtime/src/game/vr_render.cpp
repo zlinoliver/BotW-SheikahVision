@@ -1128,7 +1128,8 @@ extern "C" void botw_vr_new_frame(PPCContext* c) {
             const auto arrived = std::chrono::steady_clock::now();
             if (last_go.time_since_epoch().count() != 0) {
                 const float busy = std::chrono::duration<float, std::milli>(arrived - last_go).count();
-                if (busy > 0 && busy < 200) g_vr_busy_ms.store(g_vr_busy_ms.load(std::memory_order_relaxed) * 0.95f + busy * 0.05f,
+                // only frames of play (a menu's idle frames made a step down look possible, Fable's review 2026-11-23)
+                if (busy > 0 && busy < 200 && view_now()) g_vr_busy_ms.store(g_vr_busy_ms.load(std::memory_order_relaxed) * 0.95f + busy * 0.05f,
                                                              std::memory_order_relaxed);
             }
         }

@@ -332,7 +332,10 @@ final class BotWCompositor {
     // windows running, never sooner than a wait after the last switch (20 s, doubled when a step down was undone
     // within 30 s, up to 160 s; Fable's review 2026-11-20: a step back down by readiness alone swung every 8-9 s)
     private let paceAuto = ProcessInfo.processInfo.environment["BOTW_VR_PACE"] == "auto"
-    private var minimumShows = Int(ProcessInfo.processInfo.environment["BOTW_VR_PACE"] ?? "") ?? 2
+    // auto starts at 3 (2026-11-23, an M2 tester's v0.1.2 log: from 2 the first seconds in the world mixed 2, 3 and 4
+    // shows until the step up at 30 s; the M2 never holds 45 in the world, a light scene can still step down later)
+    private var minimumShows = ProcessInfo.processInfo.environment["BOTW_VR_PACE"] == "auto" ? 3
+        : Int(ProcessInfo.processInfo.environment["BOTW_VR_PACE"] ?? "") ?? 2
     private var paceWindow = 0, paceMissed = 0, paceSwitches = 0, paceFits = 0
     private var paceSwitchedAt = Date(), paceDownAt = Date.distantPast, paceDwell = 20.0
     // the loop at 60 Hz or less (visionOS drops it to 45 when the headset is hot: a second M2 log, 2026-11-21, thermal
@@ -457,7 +460,7 @@ final class BotWCompositor {
         depthState = device.makeDepthStencilState(descriptor: depth)!
         depth.depthCompareFunction = .always
         pictureDepthState = device.makeDepthStencilState(descriptor: depth)!
-        if paceAuto { botw_vr_set_pace(Int32(minimumShows)) }  // a new renderer (the space reopened) starts both at 2
+        if paceAuto { botw_vr_set_pace(Int32(minimumShows)) }  // a new renderer (the space reopened) starts both at 3
         var quality = "default"
         if #available(visionOS 26.0, *) {
             layerRenderer.renderQuality = layerRenderer.configuration.maxRenderQuality
@@ -1282,36 +1285,62 @@ final class BotWCompositor {
             botw_vr_set_pace(Int32(minimumShows))
             botw_vr_log(String(format: "vr pace: loop at %.0f Hz, every %d refreshes", 1 / max(frameDuration, 0.001), minimumShows))
         }
-        guard old.stereo != 0, new.stereo != 0 else { paceWindow = 0; paceMissed = 0; return }  // menus, loading
+        // only pictures of play count (Fable's review 2026-11-23 of the same log: the inventory and pause menu are stereo
+        // with the HUD on, the game nearly idle at 10.7 ms a frame, and twice that stepped the pace down to 1 in the menu;
+        // back in the world, at 33 fps, pictures mixed 1 and 2 shows for up to 22 s): menus, loading and maps restart the
+        // window and the step-down count
+        guard old.stereo != 0, new.stereo != 0, botw_vr_in_play() != 0 else {
+            paceWindow = 0; paceMissed = 0; paceFits = 0
+            return
+        }
         paceWindow += 1
         if heldFrames > minimumShows { paceMissed += 1 }
-        guard paceWindow >= 90 else { return }
+        // within 30 s of a step down, a step back up is judged every 45 pictures (otherwise 90: the 3 -> 4 step sits near
+        // its line and a short window would take bunched late pictures for a slower game)
+        let probation = Date().timeIntervalSince(paceDownAt) < 30
+        guard paceWindow >= 90 || (probation && paceWindow >= 45) else { return }
+        if paceWindow < 90 {  // a probation check: a step back up only, the window goes on to 90
+            let lowest = paceSlowLoop ? 1 : 2, highest = paceSlowLoop ? 2 : 4
+            if minimumShows >= lowest, minimumShows < highest, paceMissed * 5 >= paceWindow {
+                let missed = paceMissed, window = paceWindow
+                paceWindow = 0; paceMissed = 0
+                paceUp(missed: missed, window: window)
+            }
+            return
+        }
         let missed = paceMissed, window = paceWindow
         paceWindow = 0; paceMissed = 0
         let since = Date().timeIntervalSince(paceSwitchedAt)
         let busy = Double(botw_vr_game_busy_ms())
         let fasterBudget = Double(minimumShows - 1) * frameDuration * 1000 * 0.85
-        func switchTo(_ n: Int, _ why: String) {
-            if n > minimumShows, Date().timeIntervalSince(paceDownAt) < 30 { paceDwell = min(paceDwell * 2, 160) }
-            if n < minimumShows { paceDownAt = Date() }
-            minimumShows = n
-            paceSwitches += 1
-            paceSwitchedAt = Date()
-            paceFits = 0
-            botw_vr_set_pace(Int32(n))
-            botw_vr_log(String(format: "vr pace: every %d refreshes (%@; game frame %.1f ms, next wait %.0f s)", n, why, busy, paceDwell))
-        }
         let lowest = paceSlowLoop ? 1 : 2, highest = paceSlowLoop ? 2 : 4
-        if minimumShows == lowest, minimumShows < highest, missed * 10 >= window * 4 {
-            switchTo(minimumShows + 1, "\(missed) of \(window) pictures late")
-        } else if minimumShows > lowest, minimumShows < highest, missed * 5 >= window {
-            switchTo(minimumShows + 1, "\(missed) of \(window) pictures late")
+        // one line for every step up (20%; the lowest level's 40% kept the 1/2 mix at 45 Hz for 22 s)
+        if minimumShows < highest, missed * 5 >= window {
+            paceUp(missed: missed, window: window)
         } else if minimumShows > lowest, missed * 20 <= window, busy > 0, busy < fasterBudget {
             paceFits += 1
-            if paceFits >= 2, since >= paceDwell { switchTo(minimumShows - 1, String(format: "fits %.1f ms", fasterBudget)) }
+            if paceFits >= 2, since >= paceDwell {
+                paceSwitch(to: minimumShows - 1, String(format: "fits %.1f ms", fasterBudget), busy: busy)
+            }
         } else {
             paceFits = 0
         }
+    }
+
+    private func paceUp(missed: Int, window: Int) {
+        paceSwitch(to: minimumShows + 1, "\(missed) of \(window) pictures late", busy: Double(botw_vr_game_busy_ms()))
+    }
+
+    private func paceSwitch(to n: Int, _ why: String, busy: Double) {
+        if n > minimumShows, Date().timeIntervalSince(paceDownAt) < 30 { paceDwell = min(paceDwell * 2, 160) }
+        if n < minimumShows { paceDownAt = Date() }
+        minimumShows = n
+        paceSwitches += 1
+        paceSwitchedAt = Date()
+        paceFits = 0
+        botw_vr_set_pace(Int32(n))
+        botw_vr_log(String(format: "vr pace: every %d refreshes (%@; game frame %.1f ms, in play %d, next wait %.0f s)",
+                           n, why, busy, botw_vr_in_play(), paceDwell))
     }
 
     private func texture(_ pointer: UnsafeMutableRawPointer?) -> MTLTexture? {
