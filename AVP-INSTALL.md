@@ -10,7 +10,7 @@ This repository and its releases contain no game code, no game assets, no keys a
 - **A Mac:** Apple silicon, macOS 15.6 or later, Xcode 26 or later with the **visionOS** component (Xcode › Settings › Components), and at least 25 GB of free disk space for the build (about 40 GB is comfortable).
 - **Build tools:** `brew install cmake ninja uv` with [Homebrew](https://brew.sh).
 - **An Apple account** signed in under Xcode › Settings › Accounts. A free account works; the app then stops opening after 7 days and has to be re-signed. A paid developer account lasts a year.
-- **Apple Vision Pro** with Developer Mode on, paired with your Mac. Tested on the M5 model with visionOS 27; the M2 model is untested.
+- **Apple Vision Pro** with Developer Mode on, paired with your Mac. Tested on the M5 model with visionOS 27 (recommended). The M2 model is playable at a lower frame rate: about 30 fps, 22.5 fps once the headset warms up (see [On Apple Vision Pro (M2)](README.md#on-apple-vision-pro-m2)).
 - **PlayStation VR2 Sense controllers**, paired with the headset (Settings › Bluetooth).
 
 ## Pair Vision Pro with your Mac

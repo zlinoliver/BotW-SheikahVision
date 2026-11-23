@@ -61,13 +61,23 @@ More gameplay videos on the website: **[sheikahvision.com](https://sheikahvision
 
 | | |
 |---|---|
-| Tested hardware | Apple Vision Pro (M5), visionOS 27 |
-| Untested | Apple Vision Pro (M2) — help wanted |
-| Picture | about 1540×1345 per eye, 45 fps, 90 Hz reprojection |
+| Recommended | Apple Vision Pro (M5), visionOS 27: tested end to end |
+| Also works | Apple Vision Pro (M2): playable at a lower frame rate, tested by the community ([see below](#on-apple-vision-pro-m2)) |
+| Picture (M5) | about 1540×1345 per eye, 45 fps, 90 Hz reprojection |
 | Game versions | Wii U v208 — Japan and USA (tested), Europe (supported, not tested yet) |
 | Controllers | PlayStation VR2 Sense |
 
 The main open issues right now: picture sharpness (the headset needs more pixels per degree than the GPU budget allows today), busy areas such as Korok Forest and towns dipping below 45 fps, and a few motion-control details. Contributions are very welcome.
+
+### On Apple Vision Pro (M2)
+
+SheikahVision runs on the M2 model, and since 0.1.3 it runs evenly, without judder ([#12](../../issues/12)). But the M2's GPU is the limit, so set your expectations:
+
+- **About 30 fps** in most places, instead of 45 on M5. Head turns stay smooth at 90 Hz either way.
+- **After a few minutes of play the headset warms up**, visionOS lowers the display to 45 Hz, and the game then runs at a steady **22.5 fps**. That is the hardware, not a bug.
+- **A softer picture** than on M5: the app uses the lighter **Smooth** preset there. It is the default on a fresh install; if you installed an earlier version, choose **Smooth** under Settings › Picture quality.
+
+The M2 has had the optimisation it can take. **For the best experience, play on M5.** Thanks to the M2 testers in #12 for their logs.
 
 ## Requirements
 
