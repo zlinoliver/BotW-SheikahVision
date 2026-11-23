@@ -8,6 +8,18 @@ What changed in each version of SheikahVision. The same notes are on the [Releas
 
 **如何更新：** 从 Releases 下载新的安装器，打开后选择 **安装新版本**。App 会在你的 Mac 上重新编译并覆盖安装，头显上的游戏和存档都会保留。
 
+## 0.1.3
+
+### Fixed (Apple Vision Pro M2 only)
+
+- **No more judder right after loading or after closing the inventory or pause menu (#12).** On M2 the automatic frame pacing now starts at a steady 30 fps instead of trying 45 first. Menus no longer count when it picks a pace: the game is nearly idle there, which made it switch to a pace that the open world could not hold, and the judder could last up to about 20 seconds after closing the menu. If a pace still turns out too fast, it now switches back within a second or two.
+- M5 and other models are unchanged.
+
+### 修复（仅 Apple Vision Pro M2）
+
+- **刚进游戏、关掉背包或暂停菜单后不再抖动（#12）。** M2 上的自动帧节奏现在一开始就是稳定的 30 帧，不再先试 45 帧。选节奏时不再把菜单算进去：菜单里游戏几乎不干活，之前会让它换到野外撑不住的节奏，关掉菜单后最多会抖约 20 秒。万一选得太快，现在一两秒内就会切回来。
+- M5 和其它机型不变。
+
 ## 0.1.2
 
 ### Changed (Apple Vision Pro M2 only)
